@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express";
 import { authenticate } from "../middleware/auth";
 import { prisma } from "../db";
+import { latestPaymentPerShare } from "./sharePayments";
 
 const router = Router();
 
@@ -21,10 +22,10 @@ router.get('/:id', authenticate, async (req: Request, res: Response) => {
                     user: { // Ambil info user yang berutang
                         select: { name: true, email: true, avatarUrl: true }
                     },
-                    payments: {
-                        orderBy: { submittedAt: 'desc' },
+                    allocations: {
+                        orderBy: { payment: { submittedAt: 'desc' } },
                         take: 1,
-                        select: { id: true, status: true, note: true } // Ambil id dan note untuk keperluan review
+                        select: { payment: { select: { id: true, status: true, note: true, amount: true } } }
                     }
                 }
             },
@@ -38,7 +39,8 @@ router.get('/:id', authenticate, async (req: Request, res: Response) => {
         return res.status(404).json({ message: "Tagihan tidak ditemukan" });
     }
 
-    return res.status(200).json(expense);
+    // Bentuk respons: share.payments = [pengajuan terbaru] (dipakai frontend untuk status & review)
+    return res.status(200).json(latestPaymentPerShare(expense));
 });
 
 export { router as getExpenseDetailRouter };
