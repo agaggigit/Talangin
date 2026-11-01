@@ -41,9 +41,7 @@ router.post('/:id/expenses', authenticate, async (req: Request, res: Response) =
     const paidByUserId = res.locals.user.userId; // Orang yang sedang login = orang yang menalangi (paidBy)
     const { description, totalAmount, expenseDate, shares } = result.data;
 
-    // TODO 1: Validasi Keanggotaan Grup
-    // Cek apakah 'paidByUserId' (si pembuat tagihan) adalah anggota dari grup 'groupId'.
-    // Jika tidak, tolak dengan 403 Forbidden.
+    // 1. Penalang harus anggota grup
     const isPayerGroupMember = await prisma.groupMember.findFirst({
         where: {
             groupId: groupId,
@@ -55,10 +53,11 @@ router.post('/:id/expenses', authenticate, async (req: Request, res: Response) =
         return res.status(403).json({ message: "Kamu bukan anggota grup ini" });
     }
 
-    // TODO 2: Validasi Apakah Semua User di 'shares' Benar-benar Anggota Grup Tersebut
-    // Kamu bisa menggunakan prisma.groupMember.findMany({ where: { groupId, userId: { in: [array dari user id di shares] } } })
-    // Lalu bandingkan jumlah hasil dari database dengan panjang array shares. Jika beda, berarti ada user gelap! Tolak dengan 400 Bad Request.
+    // 2. Semua yang ditagih harus anggota grup, dan tidak boleh ada user ganda
     const userIdInShares = shares.map(share => share.userId);
+    if (new Set(userIdInShares).size !== userIdInShares.length) {
+        return res.status(400).json({ message: "Ada pengguna yang ditagih lebih dari sekali" });
+    }
     
     const isDebtorGroupMember = await prisma.groupMember.findMany({
         where: {
@@ -73,12 +72,8 @@ router.post('/:id/expenses', authenticate, async (req: Request, res: Response) =
         return res.status(400).json({ message: "Ada pengguna yang ditagih tapi bukan anggota grup" })
     } 
 
-    // TODO 3: Simpan ke Database secara Atomik (Prisma $transaction)
-    // Gunakan await prisma.$transaction(async (tx) => { ... })
-    // Di dalamnya:
-    // a. tx.expense.create({ ... }) untuk membuat induk tagihannya.
-    // b. Looping 'shares' atau gunakan tx.expenseShare.createMany({ ... }) untuk membuat pembagiannya. Gunakan 'id' dari Expense yang baru terbuat.
-    await prisma.$transaction(async (tx) => {
+    // 3. Simpan tagihan + pembagiannya secara atomik
+    const created = await prisma.$transaction(async (tx) => {
         const expense = await tx.expense.create({
             data: {
                 groupId: groupId,
@@ -98,11 +93,12 @@ router.post('/:id/expenses', authenticate, async (req: Request, res: Response) =
         
         await tx.expenseShare.createMany({
             data: expenseSharesData
-        })
+        });
+
+        return tx.expense.findUniqueOrThrow({ where: { id: expense.id }, include: { shares: true } });
     });
-    
-    // TODO 4: Return Response Sukses 201 Created
-    return res.status(201).json({ message: "Tagihan berhasil dibuat! (TODO: Isi dengan data asli)" });
+
+    return res.status(201).json({ message: "Tagihan berhasil dibuat!", expense: created });
 
 });
 

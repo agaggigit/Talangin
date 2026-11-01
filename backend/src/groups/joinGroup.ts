@@ -84,7 +84,7 @@ router.post('/join', authenticate, async (req: Request, res: Response) => {
             }
         });
 
-        // --- TRIGGER NOTIFIKASI (LANGKAH 2) ---
+        // Notifikasi
         const currentUser = await prisma.user.findUnique({ where: { id: userId }, select: { name: true }});
         if (currentUser) {
             const hosts = group.members.filter(m => m.role === 'host');
