@@ -1,7 +1,7 @@
 # Talangin
 **A PWA Bill Splitter & Debt Tracker for Friend Groups**
 
-Aplikasi ini adalah platform pencatatan utang (patungan) yang dirancang khusus untuk sirkel pertemanan yang suka lupa utang satu sama lain. Aplikasi ini dibuat simpel dan minim fitur kompleks, sehingga *user* dapat dengan mudah menavigasinya. Aplikasi ini juga memiliki dukungan *Progressive Web App* (PWA) dan kapabilitas integrasi mode *offline*, menjadikannya sangat andal kapan pun dibutuhkan.
+Aplikasi ini adalah platform pencatatan utang (patungan) yang dirancang khusus untuk sirkel pertemanan yang suka lupa utang satu sama lain. Aplikasi ini dibuat simpel dan minim fitur kompleks, sehingga *user* dapat dengan mudah menavigasinya. Aplikasi ini juga mendukung *Progressive Web App* (PWA), sehingga bisa di-install di HP seperti aplikasi native.
 
 ---
 
@@ -12,6 +12,8 @@ Aplikasi ini adalah platform pencatatan utang (patungan) yang dirancang khusus u
 - **Smart Calculator:** Kamu tidak perlu bolak-balik buka aplikasi kalkulator. Form input nominal mendukung operasi hitung-hitungan langsung (contoh: ketik `50000+15000` di kolom input).
 - **Auto-Accumulation:** Informasi penting seperti total utang yang tersisa, total yang sudah dibayar, dan saldo akhir akan langsung diakumulasi. *User* tidak perlu capek menghitung manual.
 - **Corporate & Clean UI:** Tampilan bergaya *modern banking* (ala Livin') yang bersih dan elegan, dilengkapi dengan notifikasi halus (*React Hot Toast*) dan popup (*SweetAlert2*).
+- **Lunasi Selisih (Settle Up):** Aku utang 50rb ke Budi, Budi utang 30rb ke aku? Cukup **satu transfer 20rb**. Semua tagihan dua arah di antara kalian langsung tertutup setelah Budi mengonfirmasi.
+- **Saran Transfer Grup:** Penyederhanaan utang ala Splitwise. Aplikasi menghitung jumlah transfer paling sedikit untuk melunasi seluruh utang di grup (maksimal *n − 1* transfer untuk *n* orang).
 - **Notification:** Sistem notifikasi terpusat untuk memberitahu jika ada tagihan baru atau jika utang telah dilunasi.
 - **Profile:** Profil yang dapat dikustomisasi, terintegrasi dengan Google Login (OAuth).
 
@@ -26,7 +28,6 @@ Aplikasi ini adalah platform pencatatan utang (patungan) yang dirancang khusus u
 - **PWA Builders:** Vite PWA
 - **Server State Management:** TanStack Query (React Query) untuk *caching* data dari API dan sinkronisasi otomatis.
 - **Custom Hooks Architecture:** Semua logika *fetching* API dan mutasi data **wajib dipisahkan** dari komponen UI (Presentational) dan dienkapsulasi di dalam folder `src/hooks`. Tidak boleh ada halaman yang menjadi *Fat Component*.
-- **Client-Side Database:** Dexie.js (untuk kapabilitas *offline*)
 - **UX Enhancements:** React Hot Toast & SweetAlert2 (Notifikasi & Popup)
 
 ### Backend & API Layer
@@ -39,6 +40,36 @@ Aplikasi ini adalah platform pencatatan utang (patungan) yang dirancang khusus u
 ### Database & Storage
 - **Database Utama:** PostgreSQL
 - **ORM:** Prisma
+
+---
+
+## Engineering Highlights
+
+### 1. Skema pembayaran: satu transfer, banyak tagihan
+Awalnya `Payment` terikat ke satu `ExpenseShare`, jadi melunasi selisih harus dilakukan per tagihan. Sekarang relasinya dipindah ke tabel penghubung **`payment_allocations`** (`payment_id`, `expense_share_id`, `amount`, `active`). Satu `Payment` mencatat uang yang benar-benar ditransfer (selisih bersih), sedangkan alokasinya mencatat share mana saja yang ikut lunas, termasuk share yang arahnya berlawanan.
+
+Migrasi datanya (`prisma/migrations/20261101000100_payment_allocations`) memindahkan setiap payment lama menjadi satu alokasi, lalu membersihkan duplikat sisa race condition lama sebelum constraint baru dipasang.
+
+### 2. Race condition ditutup di level database, bukan di kode
+- **Pengajuan ganda.** Pola "cek dulu apakah ada yang pending, baru insert" selalu punya celah di antara cek dan insert. Sekarang ada **partial unique index** `ON payment_allocations(expense_share_id) WHERE active`: satu share hanya boleh tercakup oleh satu pembayaran yang belum ditolak. Insert kedua pasti ditolak Postgres dan diterjemahkan menjadi HTTP 409.
+- **Approve/reject bersamaan.** Memakai update bersyarat (`updateMany ... WHERE status = 'pending'`) di dalam transaksi, lalu mengecek jumlah baris yang berubah. Dari beberapa request yang datang bersamaan, hanya satu yang mendapat `count = 1`.
+- Keduanya dibuktikan dengan **tes integrasi yang mengirim request paralel** ke Postgres sungguhan (`src/payments/payments.integration.test.ts`).
+
+### 3. Algoritma penyederhanaan utang
+`src/groups/simplifyDebts.ts` menghitung saldo bersih tiap orang, lalu secara *greedy* memasangkan pengutang terbesar dengan penerima terbesar. Setiap langkah membuat minimal satu orang saldonya nol, sehingga hasilnya paling banyak *n − 1* transfer (kompleksitas O(n log n)). Mencari jumlah transfer yang benar-benar minimum adalah masalah NP-hard (bisa direduksi dari *subset-sum*), jadi greedy ini adalah aproksimasi standar yang dipakai di praktik.
+
+### 4. Uang dihitung dalam sen (integer)
+`0.1 + 0.2 !== 0.3` di JavaScript. Semua penjumlahan saldo dikonversi ke sen (integer) dulu (`src/lib/money.ts`), lalu baru dikembalikan ke rupiah di batas keluar.
+
+---
+
+## Testing
+
+```bash
+cd backend
+npm test                  # unit test: balance, settle up, simplifyDebts
+npm run test:integration  # alur pelunasan + race condition, butuh Postgres lokal (lihat di bawah)
+```
 
 ---
 
@@ -57,7 +88,7 @@ Aplikasi ini adalah platform pencatatan utang (patungan) yang dirancang khusus u
 
 Sebelum menjalankan proyek ini, pastikan sistem kamu memiliki:
 - **Node.js** (versi 18 atau lebih baru)
-- **PostgreSQL** (pastikan *service database* berjalan)
+- **Docker Desktop** (untuk PostgreSQL lokal), atau PostgreSQL yang terinstal sendiri
 - **Git**
 
 ---
@@ -76,14 +107,16 @@ Masuk ke folder `backend`, instal dependensi, atur variabel lingkungan (*environ
 cd backend
 npm install
 
-# Buat file .env berdasarkan .env.example (atau sesuaikan dengan database kamu)
-# Isi DATABASE_URL, JWT_SECRET, dll.
+# Jalankan PostgreSQL lokal (port 5433)
+docker compose up -d
 
-# Sinkronkan skema Prisma dengan Database
-npx prisma generate
-npx prisma db push
+# Buat file .env dari .env.example (DATABASE_URL sudah mengarah ke Postgres lokal)
+cp .env.example .env
 
-# Jalankan server (biasanya akan berjalan di port 3000)
+# Terapkan semua migration ke database lokal
+npx prisma migrate deploy
+
+# Jalankan server (default port 3000, bisa diubah lewat env PORT)
 npm run dev
 ```
 
