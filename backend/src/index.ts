@@ -29,7 +29,7 @@ import { approvePaymentRouter } from './payments/approvePayment';
 import { rejectPaymentRouter } from './payments/rejectPayment';
 
 const app = express();
-const port = 3000;
+const port = Number(process.env.PORT) || 3000;
 
 // Middleware agar bisa menerima request JSON
 app.use(express.json());
