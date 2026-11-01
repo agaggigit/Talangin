@@ -28,7 +28,7 @@ export const ExpenseDetail = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [paymentNote, setPaymentNote] = useState('');
 
-    const [reviewPayment, setReviewPayment] = useState<{ id: string, amount: string | number, note?: string, from: { name: string, email: string } } | null>(null);
+    const [reviewPaymentId, setReviewPaymentId] = useState<string | null>(null);
 
     useEffect(() => {
         const token = getToken();
@@ -142,12 +142,7 @@ export const ExpenseDetail = () => {
                                                 isPayer={share.userId === expense.paidBy}
                                                 payments={share.payments}
                                                 showReviewButton={amIThePayer}
-                                                onReviewClick={(paymentId, note) => setReviewPayment({ 
-                                                    id: paymentId, 
-                                                    amount: share.shareAmount,
-                                                    note, 
-                                                    from: { name: share.user?.name || 'Anggota', email: share.user?.email || '' } 
-                                                })}
+                                                onReviewClick={(paymentId) => setReviewPaymentId(paymentId)}
                                             />
                                         ))}
                                     </div>
@@ -244,26 +239,10 @@ export const ExpenseDetail = () => {
                 </Modal>
             )}
 
-            {expense && (
-                <ReviewPaymentModal
-                    isOpen={!!reviewPayment}
-                    onClose={() => setReviewPayment(null)}
-                    payment={reviewPayment ? {
-                        id: reviewPayment.id,
-                        amount: reviewPayment.amount,
-                        note: reviewPayment.note,
-                        from: reviewPayment.from,
-                        expenseShare: {
-                            expense: {
-                                id: expense.id,
-                                description: expense.description,
-                                groupId: expense.group?.id || expense.groupId,
-                                group: { name: expense.group?.name || 'Grup' }
-                            }
-                        }
-                    } : null}
-                />
-            )}
+            <ReviewPaymentModal
+                paymentId={reviewPaymentId}
+                onClose={() => setReviewPaymentId(null)}
+            />
         </div>
     );
 };

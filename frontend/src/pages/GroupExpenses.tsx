@@ -4,6 +4,8 @@ import { Button } from '../components/Button';
 import { PageHeader } from '../components/ui/PageHeader';
 import { EmptyState } from '../components/ui/EmptyState';
 import { ExpenseCard } from '../components/expenses/ExpenseCard';
+import { SettleUpPanel } from '../components/expenses/SettleUpPanel';
+import { SettlementPlanCard } from '../components/expenses/SettlementPlanCard';
 import { Modal } from '../components/ui/Modal';
 import { Settings, Search, Plus, AlertTriangle, Receipt, Filter, ArrowRight, Wallet, PartyPopper, ArrowLeft } from 'lucide-react';
 import { getErrorMessage } from '../utils/errorHandler';
@@ -228,6 +230,9 @@ export const GroupExpenses = () => {
                             </div>
                         </div>
                     )}
+
+                    {/* --- SARAN TRANSFER (PENYEDERHANAAN UTANG GRUP) --- */}
+                    {groupId && <SettlementPlanCard groupId={groupId} currentUserId={currentUserId} />}
                 </div> {/* END KANAN */}
             </div>
 
@@ -264,6 +269,13 @@ export const GroupExpenses = () => {
                                     </div>
                                 ))}
                             </div>
+                            {groupId && (
+                                <SettleUpPanel
+                                    groupId={groupId}
+                                    counterpartyId={selectedBalanceDetail.userId}
+                                    onSettled={() => setSelectedBalanceDetail(null)}
+                                />
+                            )}
                         </div>
                     ) : (
                         <>

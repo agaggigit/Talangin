@@ -5,7 +5,7 @@ import { SkeletonList } from '../components/ui/Skeleton';
 import { ReviewPaymentModal } from '../components/expenses/ReviewPaymentModal';
 import { Inbox, Check, AlertTriangle, PartyPopper, Info, ArrowLeft } from 'lucide-react';
 import { getErrorMessage } from '../utils/errorHandler';
-import type { Payment, JoinRequest, Notification as NotificationType } from '../types';
+import type { JoinRequest, Notification as NotificationType } from '../types';
 import { useNotifications } from '../hooks/useNotifications';
 
 export const Notifications = () => {
@@ -21,11 +21,9 @@ export const Notifications = () => {
 
     const hasNoNotifications = joinRequests.length === 0 && incomingPayments.length === 0 && generalNotifs.length === 0;
 
-    // --- STATE UNTUK MODAL REVIEW (LANGKAH 3) ---
-    const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
-    const [selectedPayment, setSelectedPayment] = useState<any>(null);
+    const [selectedPaymentId, setSelectedPaymentId] = useState<string | null>(null);
 
-    // --- LOGIKA READ NOTIFIKASI (LANGKAH 4) ---
+    // Tandai notifikasi sudah dibaca
     const markAsReadMutation = useMarkAsRead();
     const markAllAsReadMutation = useMarkAllAsRead();
 
@@ -69,8 +67,8 @@ export const Notifications = () => {
                     </div>
                 ) : (
                     <>
-                        {/* --- LIST PENGAJUAN PEMBAYARAN (LANGKAH 2) --- */}
-                        {incomingPayments.map((payment: Payment & { from: {name: string}; expenseShare: { expense: { description: string } } }) => (
+                        {/* Pengajuan pembayaran yang menunggu review */}
+                        {incomingPayments.map((payment) => (
                             <div key={payment.id} className="flex justify-between items-center py-5 px-6 bg-surface-hover rounded-lg border border-yellow-500 shadow-sm transition-all duration-200">
                                 <div className="flex items-center gap-4">
                                     <div className="w-12 h-12 rounded-full bg-yellow-500 text-white flex items-center justify-center font-bold text-[1.2rem] shadow-sm shrink-0">
@@ -78,7 +76,10 @@ export const Notifications = () => {
                                     </div>
                                     <div>
                                         <p className="m-0 text-[1rem]">
-                                            <span className="font-semibold text-text-main">{payment.from.name}</span> mengajukan pelunasan untuk <span className="font-semibold">{payment.expenseShare.expense.description}</span>
+                                            <span className="font-semibold text-text-main">{payment.from.name}</span> mengajukan {payment.kind === 'settlement'
+                                                ? <>pelunasan selisih untuk <span className="font-semibold">{payment.items.length} tagihan</span></>
+                                                : <>pelunasan untuk <span className="font-semibold">{payment.items[0]?.description}</span></>}
+                                            {payment.group && <> di <span className="font-semibold">{payment.group.name}</span></>}
                                         </p>
                                         <p className="m-0 text-[0.85rem] text-yellow-800 mt-1 font-bold">
                                             Sebesar Rp {Number(payment.amount).toLocaleString('id-ID')}
@@ -86,17 +87,14 @@ export const Notifications = () => {
                                     </div>
                                 </div>
                                 <div>
-                                    <Button onClick={() => {
-                                        setSelectedPayment(payment);
-                                        setIsReviewModalOpen(true);
-                                    }} className="bg-yellow-500 text-white border-none hover:bg-yellow-600">
+                                    <Button onClick={() => setSelectedPaymentId(payment.id)} className="bg-yellow-500 text-white border-none hover:bg-yellow-600">
                                         Review
                                     </Button>
                                 </div>
                             </div>
                         ))}
 
-                        {/* --- LIST JOIN REQUESTS (YANG SUDAH ADA SEBELUMNYA) --- */}
+                        {/* Permintaan bergabung ke grup */}
                         {joinRequests.map((notif: JoinRequest & { group: {name: string}, requestedAt: string }) => (
                             <div key={notif.id} className="flex flex-col sm:flex-row justify-between items-start sm:items-center py-5 px-6 bg-surface rounded-lg border border-border shadow-sm transition-all duration-200 gap-4 sm:gap-0">
                                 <div className="flex items-center gap-4">
@@ -122,7 +120,7 @@ export const Notifications = () => {
                             </div>
                         ))}
 
-                        {/* --- LIST NOTIFIKASI UMUM (LANGKAH 4) --- */}
+                        {/* Notifikasi umum */}
                         {generalNotifs.map((notif: NotificationType) => (
                             <div key={notif.id} 
                                 onClick={() => !notif.isRead && markAsReadMutation.mutate(notif.id)}
@@ -149,12 +147,8 @@ export const Notifications = () => {
             </div>
 
             <ReviewPaymentModal
-                isOpen={isReviewModalOpen}
-                onClose={() => {
-                    setIsReviewModalOpen(false);
-                    setSelectedPayment(null);
-                }}
-                payment={selectedPayment}
+                paymentId={selectedPaymentId}
+                onClose={() => setSelectedPaymentId(null)}
             />
         </div>
     );

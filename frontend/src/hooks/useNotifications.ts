@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/api';
-import type { Notification, JoinRequest, Payment } from '../types';
+import type { Notification, JoinRequest, PaymentSummary } from '../types';
 
 export const useNotifications = () => {
     const queryClient = useQueryClient();
@@ -33,7 +33,7 @@ export const useNotifications = () => {
             queryKey: ['payments', 'incoming'],
             queryFn: async () => {
                 const response = await api.get('/payments/incoming');
-                return response.data as (Payment & { from: {name: string}; expenseShare: { expense: { description: string } } })[];
+                return response.data as PaymentSummary[];
             }
         });
     };
