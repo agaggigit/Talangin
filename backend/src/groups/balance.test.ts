@@ -108,8 +108,7 @@ describe("computeBalances", () => {
     expect(result).toEqual({ iOwe: [], owedToMe: [], totalIOwe: 0, totalOwedToMe: 0 });
   });
 
-  // BUG presisi diketahui: hapus `.fails` setelah diperbaiki
-  it.fails("angka desimal dijumlah dengan presisi", () => {
+  it("angka desimal dijumlah dengan presisi", () => {
     const result = computeBalances(
       [
         tagihan("e1", "aku", { aku: 0.3, budi: 0.3 }),

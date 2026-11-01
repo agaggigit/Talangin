@@ -1,3 +1,5 @@
+import { toCents, fromCents } from "../lib/money";
+
 type Transaction = { id: string; description: string; amount: number; iOweThem: boolean };
 
 type PersonBalance = {
@@ -25,43 +27,54 @@ type ExpenseInput = {
     shares: Share[];
 };
 
+// Akumulator internal: nominal disimpan dalam sen (integer) agar penjumlahan presisi.
+type Accumulator = { userId: string; name: string; cents: number; transactions: Transaction[] };
+
+function addTo(map: Map<string, Accumulator>, userId: string, name: string, tx: Transaction) {
+    const acc = map.get(userId) || { userId, name, cents: 0, transactions: [] };
+    acc.cents += toCents(tx.amount);
+    acc.transactions.push(tx);
+    map.set(userId, acc);
+}
+
+function toPersonBalances(map: Map<string, Accumulator>): PersonBalance[] {
+    return Array.from(map.values()).map(({ cents, ...rest }) => ({ ...rest, amount: fromCents(cents) }));
+}
+
+/**
+ * Ringkasan utang-piutang currentUser dalam satu grup, dihitung GROSS:
+ * utang ke Budi dan piutang dari Budi ditampilkan terpisah (tidak di-netting),
+ * supaya setiap tagihan tetap bisa ditelusuri. Netting dilakukan saat settle up.
+ */
 export function computeBalances(expenses: ExpenseInput[], currentUserId: string) {
-    // Map untuk menampung utang orang lain ke current user
-    const owedToMeMap = new Map<string, PersonBalance>();
-    // Map untuk menampung utang current user ke orang lain
-    const iOweMap = new Map<string, PersonBalance>();
+    // Orang lain -> berutang ke currentUser
+    const owedToMeMap = new Map<string, Accumulator>();
+    // currentUser -> berutang ke orang lain
+    const iOweMap = new Map<string, Accumulator>();
 
     for (const exp of expenses) {
         if (exp.paidBy === currentUserId) {
-            // Tagihan ini ditalangi oleh aku, anggota lain utang ke aku
             for (const share of exp.shares) {
-                if (share.userId === currentUserId) continue; // utang diriku sendiri diabaikan
-                
-                const b = owedToMeMap.get(share.userId) || { userId: share.userId, name: share.user.name, amount: 0, transactions: [] };
-                b.amount += share.shareAmount;
-                b.transactions.push({ id: exp.id, description: exp.description, amount: share.shareAmount, iOweThem: false });
-                owedToMeMap.set(share.userId, b);
+                if (share.userId === currentUserId) continue; // bagian diri sendiri bukan utang
+                addTo(owedToMeMap, share.userId, share.user.name, {
+                    id: exp.id, description: exp.description, amount: share.shareAmount, iOweThem: false,
+                });
             }
         } else {
-            // Tagihan ini ditalangi orang lain
             const myShare = exp.shares.find(s => s.userId === currentUserId);
             if (myShare) {
-                // Aku berutang ke orang ini
-                const b = iOweMap.get(exp.paidBy) || { userId: exp.paidBy, name: exp.paidByUser.name, amount: 0, transactions: [] };
-                b.amount += myShare.shareAmount;
-                b.transactions.push({ id: exp.id, description: exp.description, amount: myShare.shareAmount, iOweThem: true });
-                iOweMap.set(exp.paidBy, b);
+                addTo(iOweMap, exp.paidBy, exp.paidByUser.name, {
+                    id: exp.id, description: exp.description, amount: myShare.shareAmount, iOweThem: true,
+                });
             }
         }
     }
 
-    const owedToMe = Array.from(owedToMeMap.values());
-    const iOwe = Array.from(iOweMap.values());
+    const owedToMe = toPersonBalances(owedToMeMap);
+    const iOwe = toPersonBalances(iOweMap);
 
-    let totalOwedToMe = 0;
-    for (const b of owedToMe) totalOwedToMe += b.amount;
-    let totalIOwe = 0;
-    for (const b of iOwe) totalIOwe += b.amount;
+    const totalOwedToMe = fromCents(owedToMe.reduce((sum, b) => sum + toCents(b.amount), 0));
+    const totalIOwe = fromCents(iOwe.reduce((sum, b) => sum + toCents(b.amount), 0));
 
     return {
         iOwe,
