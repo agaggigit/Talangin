@@ -110,7 +110,9 @@ export const ExpenseDetail = () => {
     const amIInvolvedAndUnpaid = myShare && !myShare.isPaid && expense?.paidBy !== currentUserId;
     const amIThePayer = expense?.paidBy === currentUserId;
     const hasPaidShares = expense?.shares.some((s) => s.isPaid && s.userId !== expense?.paidBy);
-    const isPending = myShare?.payments?.some((p) => p.status === 'pending');
+    const myPendingPayment = myShare?.payments?.find((p) => p.status === 'pending');
+    // Bisa terjadi pada pelunasan selisih: share-ku ikut dalam transfer yang justru ditujukan ke aku
+    const iMustReviewMyShare = myPendingPayment?.toUser === currentUserId;
 
     return (
         <div className="pt-8 max-w-[1200px] mx-auto px-6 pb-12">
@@ -141,7 +143,7 @@ export const ExpenseDetail = () => {
                                                 isCurrentUser={share.userId === currentUserId}
                                                 isPayer={share.userId === expense.paidBy}
                                                 payments={share.payments}
-                                                showReviewButton={amIThePayer}
+                                                showReviewButton={share.payments?.[0]?.status === 'pending' && share.payments[0].toUser === currentUserId}
                                                 onReviewClick={(paymentId) => setReviewPaymentId(paymentId)}
                                             />
                                         ))}
@@ -169,10 +171,20 @@ export const ExpenseDetail = () => {
 
                                 {amIInvolvedAndUnpaid && (
                                     <div className="mt-2 flex justify-center">
-                                        {isPending ? (
-                                            <div className="py-4 px-8 bg-[#fef3c7] text-[#92400e] rounded-lg border border-[#fde68a] font-bold w-full text-center flex items-center justify-center gap-2">
-                                                <Clock size={20} /> Menunggu Konfirmasi Penombok
-                                            </div>
+                                        {myPendingPayment && iMustReviewMyShare ? (
+                                            <Button
+                                                onClick={() => setReviewPaymentId(myPendingPayment.id)}
+                                                className="w-full py-3 px-8 !bg-[#eab308] hover:brightness-90 flex items-center justify-center gap-2"
+                                            >
+                                                <Clock size={20} /> Tagihan ini ikut pelunasan selisih, review
+                                            </Button>
+                                        ) : myPendingPayment ? (
+                                            <button
+                                                onClick={() => setReviewPaymentId(myPendingPayment.id)}
+                                                className="py-4 px-8 bg-[#fef3c7] text-[#92400e] rounded-lg border border-[#fde68a] font-bold w-full text-center flex items-center justify-center gap-2 cursor-pointer"
+                                            >
+                                                <Clock size={20} /> Menunggu Konfirmasi {expense?.paidByUser?.name || 'Penombok'}
+                                            </button>
                                         ) : (
                                             <Button 
                                                 onClick={() => setIsModalOpen(true)} 

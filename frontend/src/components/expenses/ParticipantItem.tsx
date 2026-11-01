@@ -10,8 +10,9 @@ interface ParticipantItemProps {
     isPayer: boolean;
     avatarUrl?: string | null;
     payments?: { id: string; status: string; note?: string }[];
+    /** true hanya kalau user yang login adalah penerima pengajuan pending pada share ini */
     showReviewButton?: boolean;
-    onReviewClick?: (paymentId: string, note?: string) => void;
+    onReviewClick?: (paymentId: string) => void;
 }
 
 export function ParticipantItem({ name, email, shareAmount, isPaid, isCurrentUser, isPayer, avatarUrl, payments, showReviewButton, onReviewClick }: ParticipantItemProps) {
@@ -36,7 +37,7 @@ export function ParticipantItem({ name, email, shareAmount, isPaid, isCurrentUse
                     <div className="flex items-center gap-2 mt-1 justify-end">
                         {showReviewButton && onReviewClick && (
                             <button 
-                                onClick={() => onReviewClick(payments[0].id, payments[0].note)}
+                                onClick={() => onReviewClick(payments[0].id)}
                                 className="bg-[#eab308] text-white border-none rounded-md px-2.5 py-1 text-[0.75rem] cursor-pointer font-bold hover:brightness-90 transition-all"
                             >
                                 Review

@@ -1,6 +1,7 @@
 import { toCents, fromCents } from "../lib/money";
 
-type Transaction = { id: string; description: string; amount: number; iOweThem: boolean };
+// pending = tagihan ini sedang tercakup pengajuan pelunasan yang menunggu konfirmasi
+type Transaction = { id: string; description: string; amount: number; iOweThem: boolean; pending: boolean };
 
 type PersonBalance = {
     userId: string;
@@ -17,6 +18,7 @@ type Share = {
     userId:  string;
     shareAmount: number;
     user: UserRef;
+    pending?: boolean;
 }
 
 type ExpenseInput = {
@@ -57,14 +59,14 @@ export function computeBalances(expenses: ExpenseInput[], currentUserId: string)
             for (const share of exp.shares) {
                 if (share.userId === currentUserId) continue; // bagian diri sendiri bukan utang
                 addTo(owedToMeMap, share.userId, share.user.name, {
-                    id: exp.id, description: exp.description, amount: share.shareAmount, iOweThem: false,
+                    id: exp.id, description: exp.description, amount: share.shareAmount, iOweThem: false, pending: share.pending ?? false,
                 });
             }
         } else {
             const myShare = exp.shares.find(s => s.userId === currentUserId);
             if (myShare) {
                 addTo(iOweMap, exp.paidBy, exp.paidByUser.name, {
-                    id: exp.id, description: exp.description, amount: myShare.shareAmount, iOweThem: true,
+                    id: exp.id, description: exp.description, amount: myShare.shareAmount, iOweThem: true, pending: myShare.pending ?? false,
                 });
             }
         }

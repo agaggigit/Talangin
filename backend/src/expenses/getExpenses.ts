@@ -84,7 +84,7 @@ router.get('/:id/expenses', authenticate, async (req: Request, res: Response) =>
                     allocations: {
                         orderBy: { payment: { submittedAt: 'desc' } },
                         take: 1,
-                        select: { payment: { select: { id: true, status: true } } }
+                        select: { payment: { select: { id: true, status: true, fromUser: true, toUser: true } } }
                     }
                 }
             },

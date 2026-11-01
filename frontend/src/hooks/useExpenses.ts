@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/api';
-import type { Expense, PaymentSummary, SettlePreview, SettlementPlan } from '../types';
+import type { Expense, GroupBalance, PaymentSummary, SettlePreview, SettlementPlan } from '../types';
 
 export const useExpenses = () => {
     const queryClient = useQueryClient();
@@ -11,7 +11,7 @@ export const useExpenses = () => {
             queryKey: ['groups', groupId, 'balance'],
             queryFn: async () => {
                 const response = await api.get(`/groups/${groupId}/balance`);
-                return response.data;
+                return response.data as GroupBalance;
             },
             enabled: !!groupId
         });

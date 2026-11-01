@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { Button } from '../Button';
-import { X, Check, ArrowLeftRight } from 'lucide-react';
+import { X, Check, Clock } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import toast from 'react-hot-toast';
 import { useExpenses } from '../../hooks/useExpenses';
 import { formatRupiah } from '../../utils/format';
 import { getErrorMessage } from '../../utils/errorHandler';
+import { getToken } from '../../utils/token';
+import type { PaymentItem } from '../../types';
 
 interface ReviewPaymentModalProps {
     /** null = modal tertutup */
@@ -14,10 +16,39 @@ interface ReviewPaymentModalProps {
     onSuccess?: () => void;
 }
 
+const getCurrentUserId = (): string => {
+    const token = getToken();
+    return token ? JSON.parse(atob(token.split('.')[1])).userId : '';
+};
+
+function ItemList({ title, items, sign }: { title: string; items: PaymentItem[]; sign: '+' | '-' }) {
+    if (items.length === 0) return null;
+    return (
+        <div>
+            <p className="m-0 mb-1 text-text-muted">{title}</p>
+            {items.map(i => (
+                <div key={i.expenseId} className="flex justify-between gap-4">
+                    <span>{i.description}</span>
+                    <span className={`font-semibold ${sign === '+' ? 'text-success-text' : 'text-error'}`}>
+                        {sign === '-' ? '−' : ''}{formatRupiah(i.amount)}
+                    </span>
+                </div>
+            ))}
+        </div>
+    );
+}
+
+/**
+ * Detail satu pengajuan pembayaran.
+ * - Penerima (payment.toUser) bisa Terima / Tolak.
+ * - Pengirim hanya melihat status & rinciannya.
+ * Semua teks ditulis dari sudut pandang user yang sedang login.
+ */
 export function ReviewPaymentModal({ paymentId, onClose, onSuccess }: ReviewPaymentModalProps) {
     const [rejectionNote, setRejectionNote] = useState('');
     const { useReviewPayment, usePaymentDetail } = useExpenses();
     const { data: payment, isLoading } = usePaymentDetail(paymentId);
+    const currentUserId = getCurrentUserId();
 
     const actionMutation = useReviewPayment(paymentId ?? undefined, {
         onSuccess: () => {
@@ -47,45 +78,37 @@ export function ReviewPaymentModal({ paymentId, onClose, onSuccess }: ReviewPaym
 
     if (!paymentId) return null;
 
+    const iAmReceiver = payment?.toUser === currentUserId;
+    const other = payment ? (iAmReceiver ? payment.from : payment.to) : null;
     const isSettlement = payment?.kind === 'settlement';
-    // Dari sudut pandang penerima (yang mereview)
-    const theyOweMe = payment?.items.filter(i => i.debtorId === payment.fromUser) ?? [];
-    const iOweThem = payment?.items.filter(i => i.debtorId !== payment.fromUser) ?? [];
+
+    // Dari sudut pandang user yang login
+    const theyOweMe = payment?.items.filter(i => i.debtorId !== currentUserId) ?? [];
+    const iOweThem = payment?.items.filter(i => i.debtorId === currentUserId) ?? [];
+
+    const title = !payment ? 'Pengajuan Pembayaran'
+        : iAmReceiver ? (isSettlement ? 'Review Pelunasan Selisih' : 'Review Pembayaran')
+        : (isSettlement ? 'Pelunasan Selisih' : 'Pengajuan Pembayaran');
 
     return (
-        <Modal isOpen onClose={handleClose} title={isSettlement ? "Review Pelunasan Selisih" : "Review Pembayaran"} maxWidth="460px">
-            {isLoading || !payment ? (
+        <Modal isOpen onClose={handleClose} title={title} maxWidth="460px">
+            {isLoading || !payment || !other ? (
                 <p className="text-text-muted text-center">Memuat...</p>
             ) : (
                 <>
                     <div className="mb-6">
-                        <p className="m-0 mb-2"><strong>Pengirim:</strong> {payment.from.name}{payment.from.email ? ` (${payment.from.email})` : ''}</p>
-                        {payment.group && <p className="m-0 mb-2"><strong>Grup:</strong> {payment.group.name}</p>}
-                        <p className="m-0 mb-2"><strong>Nominal transfer:</strong> <span className="text-primary font-bold">{formatRupiah(payment.amount)}</span></p>
+                        <p className="m-0 mb-1">
+                            {iAmReceiver
+                                ? <><strong>{payment.from.name}</strong> transfer ke kamu</>
+                                : <>Kamu transfer ke <strong>{payment.to.name}</strong></>}
+                        </p>
+                        <p className="m-0 mb-4 text-2xl font-bold text-primary">{formatRupiah(payment.amount)}</p>
 
-                        {isSettlement ? (
-                            <div className="mt-4 p-4 bg-surface-muted rounded-lg text-sm flex flex-col gap-3">
-                                <p className="m-0 flex items-center gap-2 font-bold"><ArrowLeftRight size={16} /> Tagihan yang ikut lunas</p>
-                                {theyOweMe.length > 0 && (
-                                    <div>
-                                        <p className="m-0 mb-1 text-text-muted">Utang {payment.from.name} ke kamu</p>
-                                        {theyOweMe.map(i => (
-                                            <div key={i.expenseId} className="flex justify-between"><span>{i.description}</span><span className="text-success-text font-semibold">{formatRupiah(i.amount)}</span></div>
-                                        ))}
-                                    </div>
-                                )}
-                                {iOweThem.length > 0 && (
-                                    <div>
-                                        <p className="m-0 mb-1 text-text-muted">Utangmu ke {payment.from.name} (dipotong)</p>
-                                        {iOweThem.map(i => (
-                                            <div key={i.expenseId} className="flex justify-between"><span>{i.description}</span><span className="text-error font-semibold">−{formatRupiah(i.amount)}</span></div>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-                        ) : (
-                            <p className="m-0 mb-2"><strong>Untuk:</strong> {payment.items[0]?.description}</p>
-                        )}
+                        <div className="p-4 bg-surface-muted rounded-lg text-sm flex flex-col gap-3">
+                            <p className="m-0 font-bold">{isSettlement ? 'Tagihan yang ikut lunas' : 'Untuk tagihan'}</p>
+                            <ItemList title={`Utang ${other.name} ke kamu`} items={theyOweMe} sign="+" />
+                            <ItemList title={`Utangmu ke ${other.name}`} items={iOweThem} sign="-" />
+                        </div>
 
                         {payment.note && (
                             <div className="mt-4 p-4 bg-surface-muted rounded-lg italic text-sm">
@@ -95,7 +118,14 @@ export function ReviewPaymentModal({ paymentId, onClose, onSuccess }: ReviewPaym
                     </div>
 
                     {payment.status !== 'pending' ? (
-                        <p className="text-center text-text-muted m-0">Pengajuan ini sudah {payment.status === 'approved' ? 'disetujui' : 'ditolak'}.</p>
+                        <p className="text-center text-text-muted m-0">
+                            Pengajuan ini sudah {payment.status === 'approved' ? 'disetujui' : 'ditolak'}.
+                            {payment.rejectionNote && <> Alasan: {payment.rejectionNote}</>}
+                        </p>
+                    ) : !iAmReceiver ? (
+                        <p className="m-0 p-4 rounded-lg bg-[#fef3c7] text-[#92400e] font-bold flex items-center justify-center gap-2">
+                            <Clock size={18} /> Menunggu konfirmasi {payment.to.name}
+                        </p>
                     ) : (
                         <>
                             <label className="block mb-2 font-bold text-sm">
@@ -118,7 +148,6 @@ export function ReviewPaymentModal({ paymentId, onClose, onSuccess }: ReviewPaym
                                 >
                                     <X size={18} /> Tolak
                                 </Button>
-
                                 <Button
                                     onClick={() => handleAction('approve')}
                                     disabled={actionMutation.isPending}

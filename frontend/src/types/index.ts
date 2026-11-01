@@ -53,6 +53,31 @@ export interface Payment {
     status: PaymentStatus;
     note?: string;
     amount?: number | string;
+    fromUser?: string;
+    toUser?: string;
+}
+
+/** Satu tagihan di ringkasan saldo (GET /groups/:id/balance). */
+export interface BalanceTransaction {
+    id: string;          // expense id
+    description: string;
+    amount: number;
+    iOweThem: boolean;
+    pending: boolean;    // sedang tercakup pengajuan yang menunggu konfirmasi
+}
+
+export interface PersonBalance {
+    userId: string;
+    name: string;
+    amount: number;
+    transactions: BalanceTransaction[];
+}
+
+export interface GroupBalance {
+    iOwe: PersonBalance[];
+    owedToMe: PersonBalance[];
+    totalIOwe: number;
+    totalOwedToMe: number;
 }
 
 export type PaymentStatus = 'pending' | 'approved' | 'rejected';

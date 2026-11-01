@@ -29,7 +29,11 @@ router.get('/:id/balance', authenticate, async (req: Request, res: Response) => 
         include: {
             shares: {
                 where: { isPaid: false },
-                include: { user: { select: { id: true, name: true } } }
+                include: {
+                    user: { select: { id: true, name: true } },
+                    // alokasi aktif pada share yang belum lunas = pengajuan yang masih pending
+                    allocations: { where: { active: true }, select: { id: true } }
+                }
             },
             paidByUser: { select: { id: true, name: true } }
         }
@@ -37,9 +41,10 @@ router.get('/:id/balance', authenticate, async (req: Request, res: Response) => 
 
     const numberExpenses = expenses.map(exp => ({
         ...exp,
-        shares: exp.shares.map(share => ({
+        shares: exp.shares.map(({ allocations, ...share }) => ({
             ...share,
-            shareAmount: Number(share.shareAmount)
+            shareAmount: Number(share.shareAmount),
+            pending: allocations.length > 0
         })),
     }));
     
