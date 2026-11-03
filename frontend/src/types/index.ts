@@ -47,15 +47,93 @@ export interface ExpenseShare {
     payments?: Payment[];
 }
 
+/** Status pengajuan terbaru pada satu share (dari /expenses). */
 export interface Payment {
     id: string;
-    expenseShareId: string;
-    amount: number | string;
-    status: 'pending' | 'verified' | 'rejected';
+    status: PaymentStatus;
     note?: string;
-    proofUrl?: string;
-    createdAt: string;
-    expenseShare?: ExpenseShare;
+    amount?: number | string;
+    fromUser?: string;
+    toUser?: string;
+}
+
+/** Satu tagihan di ringkasan saldo (GET /groups/:id/balance). */
+export interface BalanceTransaction {
+    id: string;          // expense id
+    description: string;
+    amount: number;
+    iOweThem: boolean;
+    pending: boolean;    // sedang tercakup pengajuan yang menunggu konfirmasi
+}
+
+export interface PersonBalance {
+    userId: string;
+    name: string;
+    amount: number;
+    transactions: BalanceTransaction[];
+}
+
+export interface GroupBalance {
+    iOwe: PersonBalance[];
+    owedToMe: PersonBalance[];
+    totalIOwe: number;
+    totalOwedToMe: number;
+}
+
+export type PaymentStatus = 'pending' | 'approved' | 'rejected';
+
+export interface UserLite {
+    id: string;
+    name: string;
+    email?: string;
+    avatarUrl?: string | null;
+}
+
+/** Tagihan yang tertutup oleh satu pembayaran. */
+export interface PaymentItem {
+    expenseId: string;
+    description: string;
+    amount: number;
+    debtorId: string;
+}
+
+/** Satu transfer (bisa menutup banyak tagihan sekaligus, termasuk dua arah). */
+export interface PaymentSummary {
+    id: string;
+    groupId: string | null;
+    group: { id: string; name: string } | null;
+    fromUser: string;
+    toUser: string;
+    from: UserLite;
+    to: UserLite;
+    amount: number;
+    note: string;
+    status: PaymentStatus;
+    submittedAt: string;
+    reviewedAt: string | null;
+    rejectionNote: string | null;
+    kind: 'single' | 'settlement';
+    items: PaymentItem[];
+}
+
+export interface SettlePreview {
+    counterparty: { id: string; name: string };
+    plan: {
+        fromUser: string;
+        toUser: string;
+        amount: number;
+        grossFromOwes: number;
+        grossToOwes: number;
+        iPay: boolean;
+        theyPay: boolean;
+        allocations: { shareId: string; amount: number; expenseId: string; description: string; debtorId: string }[];
+    } | null;
+    pendingCount: number;
+}
+
+export interface SettlementPlan {
+    transfers: { from: UserLite; to: UserLite; amount: number }[];
+    directTransferCount: number;
 }
 
 export interface Notification {

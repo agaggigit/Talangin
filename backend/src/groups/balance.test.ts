@@ -60,7 +60,7 @@ describe("computeBalances", () => {
     expect(result.owedToMe).toHaveLength(1);
     expect(result.owedToMe[0].amount).toBe(50000);
     expect(result.owedToMe[0].transactions).toHaveLength(1);
-    expect(result.iOwe).toEqual([{ userId: "budi", name: "budi", amount: 30000, transactions: [{ id: "e2", description: "Tagihan e2", amount: 30000, iOweThem: true }] }]);
+    expect(result.iOwe).toEqual([{ userId: "budi", name: "budi", amount: 30000, transactions: [{ id: "e2", description: "Tagihan e2", amount: 30000, iOweThem: true, pending: false }] }]);
   });
 
   it("utang dan piutang dengan nominal sama tetap di gross", () => {
@@ -108,8 +108,7 @@ describe("computeBalances", () => {
     expect(result).toEqual({ iOwe: [], owedToMe: [], totalIOwe: 0, totalOwedToMe: 0 });
   });
 
-  // BUG presisi diketahui: hapus `.fails` setelah diperbaiki
-  it.fails("angka desimal dijumlah dengan presisi", () => {
+  it("angka desimal dijumlah dengan presisi", () => {
     const result = computeBalances(
       [
         tagihan("e1", "aku", { aku: 0.3, budi: 0.3 }),

@@ -15,6 +15,7 @@ import { getGroupDetailsRouter } from './groups/getGroupDetails';
 import { getGroupMembersRouter } from './groups/getGroupMembers';
 import { getGroupBalanceRouter } from './groups/getGroupBalance';
 import { getActivityRouter } from './groups/activity';
+import { getSettlementRouter } from './groups/getSettlement';
 import { joinRequestNotificationRouter } from './notifications/joinRequestNotifications';
 import { notificationRouter } from './notifications/getNotifications';
 import { createExpenseRouter } from './expenses/createExpense';
@@ -28,7 +29,7 @@ import { approvePaymentRouter } from './payments/approvePayment';
 import { rejectPaymentRouter } from './payments/rejectPayment';
 
 const app = express();
-const port = 3000;
+const port = Number(process.env.PORT) || 3000;
 
 // Middleware agar bisa menerima request JSON
 app.use(express.json());
@@ -54,6 +55,7 @@ app.use('/groups', getGroupBalanceRouter);
 app.use('/groups', createExpenseRouter);
 app.use('/groups', getExpensesRouter);
 app.use('/groups', getActivityRouter);
+app.use('/groups', getSettlementRouter);
 
 app.use('/notifications', joinRequestNotificationRouter);
 app.use('/notifications', notificationRouter);
@@ -82,8 +84,8 @@ app.get('/api/me', authenticate, (req, res) => {
 
 app.use(errorHandler);
 
-// Menjalankan server hanya jika tidak di lingkungan serverless (seperti Vercel)
-if (process.env.NODE_ENV !== 'production' && process.env.VERCEL !== '1') {
+// Menjalankan server hanya jika file ini dieksekusi langsung (bukan di-import oleh Vercel / tes)
+if (require.main === module && process.env.VERCEL !== '1') {
   app.listen(port, () => {
     console.log(`Server berjalan di http://localhost:${port}`);
   });

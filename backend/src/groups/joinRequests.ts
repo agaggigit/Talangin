@@ -112,7 +112,7 @@ router.patch('/:id/join-requests/:requestId', authenticate, async (req: Request,
                 }
             });
 
-            // --- TRIGGER NOTIFIKASI (LANGKAH 2) ---
+            // Notifikasi
             const group = await prisma.group.findUnique({ where: { id: groupId }});
             if (group) {
                 await createNotification(
@@ -143,7 +143,7 @@ router.patch('/:id/join-requests/:requestId', authenticate, async (req: Request,
                 });
             });
             
-            // --- TRIGGER NOTIFIKASI (LANGKAH 2) ---
+            // Notifikasi
             const group = await prisma.group.findUnique({ where: { id: groupId }});
             if (group) {
                 await createNotification(

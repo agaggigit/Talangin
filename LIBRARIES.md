@@ -40,10 +40,7 @@ Berikut adalah daftar library utama yang berjalan di sisi pengguna (browser).
     *   **Fungsi:** Menyediakan tombol khusus dan logika untuk "Login dengan Google".
     *   **Alasan:** Mempermudah implementasi integrasi login Google di React tanpa harus berurusan manual dengan *script* Google Identity yang rumit.
 
-### Fitur Offline / PWA
-*   **`dexie`**
-    *   **Fungsi:** Mempermudah penyimpanan data secara lokal di browser menggunakan *IndexedDB*.
-    *   **Alasan:** Sebagai persiapan untuk membuat aplikasi ini bisa bekerja secara *offline*.
+### PWA
 *   **`vite-plugin-pwa` & `workbox-window`**
     *   **Fungsi:** Mengubah aplikasi web menjadi *Progressive Web App* (PWA) agar bisa di-install di HP seperti aplikasi native.
 

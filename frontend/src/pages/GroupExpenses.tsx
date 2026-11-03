@@ -4,8 +4,10 @@ import { Button } from '../components/Button';
 import { PageHeader } from '../components/ui/PageHeader';
 import { EmptyState } from '../components/ui/EmptyState';
 import { ExpenseCard } from '../components/expenses/ExpenseCard';
+import { PersonBalanceDetail } from '../components/expenses/PersonBalanceDetail';
+import { SimplifyDebtsButton } from '../components/expenses/SimplifyDebtsButton';
 import { Modal } from '../components/ui/Modal';
-import { Settings, Search, Plus, AlertTriangle, Receipt, Filter, ArrowRight, Wallet, PartyPopper, ArrowLeft } from 'lucide-react';
+import { Settings, Search, Plus, AlertTriangle, Receipt, Filter, ArrowRight, Wallet, PartyPopper, ArrowLeft, Clock } from 'lucide-react';
 import { getErrorMessage } from '../utils/errorHandler';
 
 import { SkeletonList } from '../components/ui/Skeleton';
@@ -30,7 +32,7 @@ export const GroupExpenses = () => {
     const navigate = useNavigate();
 
     const [isBalanceModalOpen, setIsBalanceModalOpen] = useState(false);
-    const [selectedBalanceDetail, setSelectedBalanceDetail] = useState<{ userId: string, name: string, amount: number, transactions: { id: string, description: string, amount: number, iOweThem: boolean }[], isDebt: boolean } | null>(null);
+    const [selectedBalanceDetail, setSelectedBalanceDetail] = useState<{ userId: string, name: string } | null>(null);
     const [searchKeyword, setSearchKeyword] = useState('');
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
@@ -228,6 +230,9 @@ export const GroupExpenses = () => {
                             </div>
                         </div>
                     )}
+
+                    {/* Fitur tambahan: pratinjau penyederhanaan utang grup */}
+                    {groupId && <SimplifyDebtsButton groupId={groupId} currentUserId={currentUserId} />}
                 </div> {/* END KANAN */}
             </div>
 
@@ -246,24 +251,15 @@ export const GroupExpenses = () => {
                             >
                                 <ArrowLeft size={16} /> Kembali
                             </button>
-                            <h4 className={`m-0 mb-4 ${selectedBalanceDetail.isDebt ? 'text-error' : 'text-primary'}`}>
-                                Total {selectedBalanceDetail.isDebt ? 'Utangmu' : 'Piutangmu'}: Rp {Number(selectedBalanceDetail.amount).toLocaleString('id-ID')}
-                            </h4>
-                            <div className="flex flex-col gap-3">
-                                {selectedBalanceDetail.transactions.map(tx => (
-                                    <div 
-                                        key={tx.id} 
-                                        onClick={() => {
-                                            setIsBalanceModalOpen(false);
-                                            navigate(`/expenses/${tx.id}`);
-                                        }}
-                                        className="flex justify-between items-center p-4 bg-surface-hover rounded-lg border border-border cursor-pointer hover:border-primary transition-colors"
-                                    >
-                                        <span className="font-bold text-text-main">{tx.description}</span>
-                                        <span className={`font-bold ${tx.iOweThem ? 'text-error' : 'text-success-text'}`}>Rp {Number(tx.amount).toLocaleString('id-ID')}</span>
-                                    </div>
-                                ))}
-                            </div>
+                            {groupId && (
+                                <PersonBalanceDetail
+                                    groupId={groupId}
+                                    balance={balanceData}
+                                    person={selectedBalanceDetail}
+                                    onNavigate={() => setIsBalanceModalOpen(false)}
+                                    onSettled={() => setSelectedBalanceDetail(null)}
+                                />
+                            )}
                         </div>
                     ) : (
                         <>
@@ -273,13 +269,13 @@ export const GroupExpenses = () => {
                                     <p className="text-text-muted text-[0.9rem] flex items-center gap-2"><PartyPopper size={16} /> Kamu tidak punya utang ke siapapun!</p>
                                 ) : (
                                     <div className="flex flex-col gap-3">
-                                        {balanceData.iOwe.map((item: any) => (
+                                        {balanceData.iOwe.map((item) => (
                                             <div 
                                                 key={item.userId} 
-                                                onClick={() => setSelectedBalanceDetail({ ...item, isDebt: true })}
+                                                onClick={() => setSelectedBalanceDetail({ userId: item.userId, name: item.name })}
                                                 className="flex justify-between p-3 bg-surface-hover rounded-lg border border-border cursor-pointer hover:border-error transition-colors"
                                             >
-                                                <span className="font-bold text-text-main">Ke {item.name}</span>
+                                                <span className="font-bold text-text-main">Ke {item.name}{item.transactions.some(t => t.pending) && <Clock size={14} className="inline ml-2 text-[#b45309]" aria-label="Ada yang menunggu konfirmasi" />}</span>
                                                 <span className="text-error font-bold">Rp {Number(item.amount).toLocaleString('id-ID')}</span>
                                             </div>
                                         ))}
@@ -293,13 +289,13 @@ export const GroupExpenses = () => {
                                     <p className="text-text-muted text-[0.9rem] flex items-center gap-2"><Wallet size={16} /> Belum ada yang utang ke kamu.</p>
                                 ) : (
                                     <div className="flex flex-col gap-3">
-                                        {balanceData.owedToMe.map((item: any) => (
+                                        {balanceData.owedToMe.map((item) => (
                                             <div 
                                                 key={item.userId} 
-                                                onClick={() => setSelectedBalanceDetail({ ...item, isDebt: false })}
+                                                onClick={() => setSelectedBalanceDetail({ userId: item.userId, name: item.name })}
                                                 className="flex justify-between p-3 bg-surface-hover rounded-lg border border-border cursor-pointer hover:border-primary transition-colors"
                                             >
-                                                <span className="font-bold text-text-main">Dari {item.name}</span>
+                                                <span className="font-bold text-text-main">Dari {item.name}{item.transactions.some(t => t.pending) && <Clock size={14} className="inline ml-2 text-[#b45309]" aria-label="Ada yang menunggu konfirmasi" />}</span>
                                                 <span className="text-success-text font-bold">Rp {Number(item.amount).toLocaleString('id-ID')}</span>
                                             </div>
                                         ))}

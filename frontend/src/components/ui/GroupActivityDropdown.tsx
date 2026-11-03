@@ -4,22 +4,10 @@ import { getToken } from '../../utils/token';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import api from '../../lib/api';
+import type { PaymentSummary } from '../../types';
 
-interface ActivityItem {
-    id: string;
-    expenseShare: {
-        expense: {
-            id: string;
-            description: string;
-        }
-    };
-    from: { name: string, id: string };
-    to: { name: string, id: string };
-    amount: string;
-    status: string;
-    submittedAt: string;
-    reviewedAt?: string;
-}
+type ActivityItem = PaymentSummary;
+
 
 export function GroupActivityDropdown({ groupId }: { groupId: string }) {
     const [isOpen, setIsOpen] = useState(false);
@@ -112,7 +100,10 @@ export function GroupActivityDropdown({ groupId }: { groupId: string }) {
                                         key={activity.id} 
                                         onClick={() => {
                                             setIsOpen(false);
-                                            navigate(`/expenses/${activity.expenseShare.expense.id}`);
+                                            // Pelunasan satu tagihan -> buka tagihannya; pelunasan selisih -> tetap di grup
+                                            if (activity.kind === 'single' && activity.items[0]) {
+                                                navigate(`/expenses/${activity.items[0].expenseId}`);
+                                            }
                                         }}
                                         className={`p-4 border-b border-border cursor-pointer transition-colors duration-200 flex gap-3 hover:bg-surface-muted ${activity.status === 'pending' && isForMe ? 'bg-surface-muted' : 'bg-transparent'}`}
                                     >
@@ -121,7 +112,9 @@ export function GroupActivityDropdown({ groupId }: { groupId: string }) {
                                         </div>
                                         <div className="flex-1">
                                             <p className="m-0 text-[0.9rem] text-text-main leading-snug">
-                                                {actionText} untuk tagihan <strong>{activity.expenseShare.expense.description}</strong>
+                                                {actionText} {activity.kind === 'settlement'
+                                                    ? <>(selisih dari <strong>{activity.items.length} tagihan</strong>)</>
+                                                    : <>untuk tagihan <strong>{activity.items[0]?.description}</strong></>}
                                             </p>
                                             <p className="m-0 text-[0.75rem] text-text-muted mt-1">
                                                 Rp {Number(activity.amount).toLocaleString('id-ID')} • {new Date(activity.submittedAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}

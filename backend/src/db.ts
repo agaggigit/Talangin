@@ -10,9 +10,11 @@ if (!connectionString) {
     throw new Error("FATAL ERROR: DATABASE_URL belum diatur di file .env");
 }
 
-const pool = new Pool({ 
+// Di Vercel (serverless) satu instance hanya melayani satu request, jadi 1 koneksi cukup
+// dan mencegah error "too many clients". Di lokal/tes, beberapa koneksi supaya request paralel benar-benar paralel.
+const pool = new Pool({
     connectionString,
-    max: 1 // Vercel (Serverless) hanya menangani 1 request per instance, jadi max 1 koneksi sudah cukup dan mencegah error "max clients"
+    max: process.env.VERCEL === '1' ? 1 : 10
 });
 const adapter = new PrismaPg(pool);
 

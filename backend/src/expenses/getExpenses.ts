@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express";
 import { authenticate } from "../middleware/auth";
 import { prisma } from "../db";
+import { latestPaymentPerShare } from "./sharePayments";
 
 const router = Router();
 
@@ -8,7 +9,6 @@ router.get('/:id/expenses', authenticate, async (req: Request, res: Response) =>
     const groupId = req.params.id as string;
     const userId = res.locals.user.userId;
 
-    // TODO 1: Validasi Keanggotaan Grup
     const isMember = await prisma.groupMember.findFirst({
         where: {
             groupId: groupId,
@@ -20,12 +20,12 @@ router.get('/:id/expenses', authenticate, async (req: Request, res: Response) =>
         return res.status(403).json({ message: "Kamu bukan anggota grup ini" });
     }
 
-    // --- POLA PIKIR PAGINATION (LANGKAH 1) ---
+    // Pagination
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 10;
     const skip = (page - 1) * limit;
 
-    // --- POLA PIKIR FILTER TANGGAL, KEYWORD, DAN STATUS (LANGKAH 3) ---
+    // Filter: keyword, rentang tanggal, peran/status
     const keyword = req.query.keyword as string;
     const startDateQuery = req.query.startDate as string;
     const endDateQuery = req.query.endDate as string;
@@ -74,7 +74,6 @@ router.get('/:id/expenses', authenticate, async (req: Request, res: Response) =>
         }
     }
 
-    // TODO 2: Ambil Daftar Tagihan dari Database dengan Batasan
     const expenses = await prisma.expense.findMany({
         where: whereClause, // Gunakan where dinamis yang kita buat
         skip: skip,
@@ -82,8 +81,10 @@ router.get('/:id/expenses', authenticate, async (req: Request, res: Response) =>
         include: {
             shares: {
                 include: {
-                    payments: {
-                        select: { status: true }
+                    allocations: {
+                        orderBy: { payment: { submittedAt: 'desc' } },
+                        take: 1,
+                        select: { payment: { select: { id: true, status: true, fromUser: true, toUser: true } } }
                     }
                 }
             },
@@ -99,8 +100,7 @@ router.get('/:id/expenses', authenticate, async (req: Request, res: Response) =>
         ]
     });
     
-    // TODO 3: Return Response
-    return res.status(200).json(expenses);
+    return res.status(200).json(expenses.map(latestPaymentPerShare));
 
 });
 

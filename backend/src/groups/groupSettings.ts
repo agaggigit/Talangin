@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { Router, Request, Response } from "express";
 import { authenticate } from "../middleware/auth";
 import { prisma } from "../db";
@@ -24,12 +25,9 @@ router.patch('/:id', authenticate, async (req: Request, res: Response) => {
     const groupId = req.params.id as string;
     const userId = res.locals.user.userId;
     
-    // TODO: Ambil data name, joinApprovalRequired, regenerateInviteCode dari req.body
     const { name, joinApprovalRequired, regenerateInviteCode } = result.data;
 
-    // TODO: Cek apakah user yang request adalah 'host' dari grup ini. 
-    // Hint: Gunakan prisma.groupMember.findFirst(...)
-    // Jika bukan host, return res.status(403).json({ message: 'Hanya Host yang dapat mengubah pengaturan grup' })
+    // Hanya host yang boleh mengubah pengaturan grup
     const userRole = await prisma.groupMember.findFirst({
         where: {
             userId: userId,
@@ -44,8 +42,7 @@ router.patch('/:id', authenticate, async (req: Request, res: Response) => {
         return res.status(403).json({ message: 'Hanya Host yang dapat mengubah pengaturan grup' })
     }
     
-    // TODO: Siapkan objek data untuk diupdate ke Prisma
-    const updateData: any = {};
+    const updateData: Prisma.GroupUpdateInput = {};
     
     if (name !== undefined) {
         updateData.name = name;

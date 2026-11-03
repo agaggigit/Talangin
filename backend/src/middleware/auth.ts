@@ -1,7 +1,8 @@
-import { Router, Request, Response, NextFunction } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
+import { prisma } from '../db';
 
-export const authenticate = (req: Request, res: Response, next: NextFunction) => {
+export const authenticate = async (req: Request, res: Response, next: NextFunction) => {
     const authHeader = req.headers.authorization;
 
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -12,19 +13,26 @@ export const authenticate = (req: Request, res: Response, next: NextFunction) =>
 
     const token = authHeader.split(' ')[1];
 
-    try {
-        const secretKey = process.env.JWT_SECRET;
-        if (!secretKey) {
-            throw new Error("FATAL ERROR: JWT_SECRET belum diatur di file .env");
-        }
-
-        const decoded = jwt.verify(token, secretKey);
-        res.locals.user = decoded;
-
-        next();
-    } catch {
-        return res.status(401).json({ 
-            message: "Token tidak valid atau sudah kadaluwarsa." 
-        });
+    const secretKey = process.env.JWT_SECRET;
+    if (!secretKey) {
+        throw new Error("FATAL ERROR: JWT_SECRET belum diatur di file .env");
     }
+
+    let decoded: jwt.JwtPayload & { userId?: string };
+    try {
+        decoded = jwt.verify(token, secretKey) as jwt.JwtPayload & { userId?: string };
+    } catch {
+        return res.status(401).json({ message: "Token tidak valid atau sudah kadaluwarsa." });
+    }
+
+    // Tanda tangan valid belum tentu usernya ada (akun dihapus, atau token dari database lain).
+    const userExists = decoded.userId
+        ? await prisma.user.findUnique({ where: { id: decoded.userId }, select: { id: true } })
+        : null;
+    if (!userExists) {
+        return res.status(401).json({ message: "Sesi tidak berlaku. Silakan login ulang." });
+    }
+
+    res.locals.user = decoded;
+    next();
 }

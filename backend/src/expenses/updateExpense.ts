@@ -2,6 +2,7 @@ import { Router, Request, Response } from "express";
 import { authenticate } from "../middleware/auth";
 import { prisma } from "../db";
 import z from "zod";
+import { assertNoPendingPayments } from "../payments/paymentService";
 
 const router = Router();
 
@@ -24,7 +25,11 @@ const updateExpenseSchema = z.object({
     path: ["shares"]
 });
 
-router.put('/:id', authenticate, async (req: Request, res: Response) => {
+// PUT & PATCH sama-sama diterima (frontend memakai PATCH)
+router.put('/:id', authenticate, handleUpdate);
+router.patch('/:id', authenticate, handleUpdate);
+
+async function handleUpdate(req: Request, res: Response) {
     const result = updateExpenseSchema.safeParse(req.body);
 
     if (!result.success) {
@@ -53,6 +58,11 @@ router.put('/:id', authenticate, async (req: Request, res: Response) => {
     // 3. Cek kondisi "Apakah ada yang sudah lunas selain pembuat?"
     const hasPaidShares = expense.shares.some(share => share.isPaid && share.userId !== userId);
 
+    if (!hasPaidShares) {
+        // Share lama akan diganti; jangan sampai ada pengajuan pending yang ikut hilang.
+        await assertNoPendingPayments(expense.shares.map(s => s.id));
+    }
+
     await prisma.$transaction(async (tx) => {
         if (hasPaidShares) {
             // JIKA TERKUNCI: Hanya boleh update Judul dan Tanggal
@@ -66,14 +76,7 @@ router.put('/:id', authenticate, async (req: Request, res: Response) => {
         } else {
             // JIKA BEBAS: Update Semua (termasuk menghapus semua share lama dan membuat yang baru)
             
-            // Ambil id shares lama untuk menghapus payments pending (jika ada)
-            const oldShareIds = expense.shares.map(s => s.id);
-            
-            await tx.payment.deleteMany({
-                where: { expenseShareId: { in: oldShareIds } }
-            });
-
-            // Hapus shares lama
+            // Hapus shares lama (alokasi payment yang sudah ditolak ikut terhapus via cascade)
             await tx.expenseShare.deleteMany({
                 where: { expenseId: expenseId }
             });
@@ -103,7 +106,6 @@ router.put('/:id', authenticate, async (req: Request, res: Response) => {
     });
 
     return res.status(200).json({ message: "Tagihan berhasil diperbarui.", isLocked: hasPaidShares });
-
-});
+}
 
 export { router as updateExpenseRouter };

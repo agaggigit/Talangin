@@ -87,19 +87,21 @@ model ExpenseShare {
 
   expense    Expense @relation(fields: [expenseId], references: [id])
   user       User    @relation("ExpenseShare", fields: [userId], references: [id])
-  
-  payments   Payment[]
+
+  allocations PaymentAllocation[]
 
   @@map("expense_shares")
 }
 
+// Satu Payment = satu transfer uang dari fromUser ke toUser.
+// Share yang dilunasi transfer ini dicatat di PaymentAllocation, sehingga satu transfer
+// bisa menutup banyak share sekaligus, termasuk share dua arah (settle up / lunasi selisih).
 model Payment {
   id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  expenseShareId String    @map("expense_share_id") @db.Uuid
   groupId        String?   @map("group_id") @db.Uuid // Saya buat opsional (ada ?) jika suatu saat ada pelunasan di luar grup
   fromUser       String    @map("from_user") @db.Uuid
   toUser         String    @map("to_user") @db.Uuid
-  amount         Decimal   @db.Decimal(14, 2)
+  amount         Decimal   @db.Decimal(14, 2) // nominal yang benar-benar ditransfer (selisih bersih)
   note           String
   status         String    @default("pending") @db.VarChar(20) // pending | approved | rejected
   submittedAt    DateTime  @default(now()) @map("submitted_at")
@@ -109,9 +111,29 @@ model Payment {
   from          User         @relation("PaymentsSent", fields: [fromUser], references: [id])
   to            User         @relation("PaymentsReceived", fields: [toUser], references: [id])
   groupActivity Group?       @relation("InterGroupPayment", fields: [groupId], references: [id])
-  expenseShare  ExpenseShare @relation(fields: [expenseShareId], references: [id])
+  allocations   PaymentAllocation[]
 
+  @@index([toUser, status])
   @@map("payments")
+}
+
+// Baris penghubung Payment <-> ExpenseShare.
+// Invariant (dijaga partial unique index di migration, bukan di Prisma schema):
+//   satu share hanya boleh punya SATU alokasi aktif (payment pending/approved).
+//   Saat payment ditolak, alokasinya di-set active = false sehingga share bisa diajukan lagi.
+model PaymentAllocation {
+  id             String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  paymentId      String  @map("payment_id") @db.Uuid
+  expenseShareId String  @map("expense_share_id") @db.Uuid
+  amount         Decimal @db.Decimal(14, 2) // nominal share yang ditutup
+  active         Boolean @default(true)
+
+  payment      Payment      @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  expenseShare ExpenseShare @relation(fields: [expenseShareId], references: [id], onDelete: Cascade)
+
+  @@index([paymentId])
+  @@index([expenseShareId])
+  @@map("payment_allocations")
 }
 
 model GroupJoinRequest {

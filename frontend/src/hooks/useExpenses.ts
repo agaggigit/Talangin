@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/api';
-import type { Expense } from '../types';
+import type { Expense, GroupBalance, PaymentSummary, SettlePreview, SettlementPlan } from '../types';
 
 export const useExpenses = () => {
     const queryClient = useQueryClient();
@@ -11,7 +11,7 @@ export const useExpenses = () => {
             queryKey: ['groups', groupId, 'balance'],
             queryFn: async () => {
                 const response = await api.get(`/groups/${groupId}/balance`);
-                return response.data;
+                return response.data as GroupBalance;
             },
             enabled: !!groupId
         });
@@ -115,6 +115,7 @@ export const useExpenses = () => {
             },
             onSuccess: (data) => {
                 queryClient.invalidateQueries({ queryKey: ['expenses', expenseId] });
+                queryClient.invalidateQueries({ queryKey: ['groups'] });
                 if (options?.onSuccess) options.onSuccess(data);
             },
             onError: (err) => {
@@ -123,8 +124,16 @@ export const useExpenses = () => {
         });
     };
 
+    // Data yang berubah setiap kali ada pembayaran dibuat / direview
+    const invalidatePaymentData = () => {
+        queryClient.invalidateQueries({ queryKey: ['expenses'] });
+        queryClient.invalidateQueries({ queryKey: ['groups'] });
+        queryClient.invalidateQueries({ queryKey: ['payments'] });
+        queryClient.invalidateQueries({ queryKey: ['notifications'] });
+    };
+
     // 8. Terima/Tolak Pembayaran (Review Payment)
-    const useReviewPayment = (expenseId: string | undefined, paymentId: string | undefined, options?: { onSuccess?: (data: any) => void, onError?: (err: unknown) => void }) => {
+    const useReviewPayment = (paymentId: string | undefined, options?: { onSuccess?: (data: any) => void, onError?: (err: unknown) => void }) => {
         return useMutation({
             mutationFn: async ({ action, note }: { action: 'approve' | 'reject', note?: string }) => {
                 const payload = action === 'reject' ? { rejectionNote: note } : {};
@@ -132,12 +141,65 @@ export const useExpenses = () => {
                 return response.data;
             },
             onSuccess: (data) => {
-                queryClient.invalidateQueries({ queryKey: ['expenses', expenseId] });
+                invalidatePaymentData();
                 if (options?.onSuccess) options.onSuccess(data);
             },
             onError: (err) => {
                 if (options?.onError) options.onError(err);
             }
+        });
+    };
+
+    // 9. Detail satu pembayaran
+    const usePaymentDetail = (paymentId: string | null | undefined) => {
+        return useQuery({
+            queryKey: ['payments', paymentId],
+            queryFn: async () => {
+                const response = await api.get(`/payments/${paymentId}`);
+                return response.data as PaymentSummary;
+            },
+            enabled: !!paymentId
+        });
+    };
+
+    // 10. Pratinjau "lunasi selisih" dengan satu orang
+    const useSettlePreview = (groupId: string | undefined, counterpartyId: string | null | undefined) => {
+        return useQuery({
+            queryKey: ['groups', groupId, 'settle-preview', counterpartyId],
+            queryFn: async () => {
+                const response = await api.get(`/groups/${groupId}/settle-preview`, { params: { with: counterpartyId } });
+                return response.data as SettlePreview;
+            },
+            enabled: !!groupId && !!counterpartyId
+        });
+    };
+
+    // 11. Ajukan pelunasan selisih
+    const useSettleUp = (options?: { onSuccess?: (data: any) => void, onError?: (err: unknown) => void }) => {
+        return useMutation({
+            mutationFn: async (payload: { groupId: string, counterpartyId: string, note?: string }) => {
+                const response = await api.post(`/payments/settle`, payload);
+                return response.data;
+            },
+            onSuccess: (data) => {
+                invalidatePaymentData();
+                if (options?.onSuccess) options.onSuccess(data);
+            },
+            onError: (err) => {
+                if (options?.onError) options.onError(err);
+            }
+        });
+    };
+
+    // 12. Saran transfer minimal untuk seluruh grup
+    const useSettlementPlan = (groupId: string | undefined) => {
+        return useQuery({
+            queryKey: ['groups', groupId, 'settlement-plan'],
+            queryFn: async () => {
+                const response = await api.get(`/groups/${groupId}/settlement-plan`);
+                return response.data as SettlementPlan;
+            },
+            enabled: !!groupId
         });
     };
 
@@ -149,6 +211,10 @@ export const useExpenses = () => {
         useEditExpense,
         useDeleteExpense,
         useCreatePayment,
-        useReviewPayment
+        useReviewPayment,
+        usePaymentDetail,
+        useSettlePreview,
+        useSettleUp,
+        useSettlementPlan
     };
 };

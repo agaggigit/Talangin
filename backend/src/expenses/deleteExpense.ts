@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express";
 import { authenticate } from "../middleware/auth";
 import { prisma } from "../db";
+import { assertNoPendingPayments } from "../payments/paymentService";
 
 const router = Router();
 
@@ -33,17 +34,11 @@ router.delete('/:id', authenticate, async (req: Request, res: Response) => {
         });
     }
 
-    // 4. Proses Hapus secara berurutan (Prisma Transaction)
-    // Hapus Payment -> Hapus ExpenseShare -> Hapus Expense
+    // 4. Pengajuan pending bisa saja mencakup tagihan lain (lunasi selisih), jadi jangan dihapus diam-diam.
+    await assertNoPendingPayments(expense.shares.map(s => s.id));
+
+    // 5. Hapus shares -> expense. Alokasi payment (yang sudah ditolak) ikut terhapus via ON DELETE CASCADE.
     await prisma.$transaction(async (tx) => {
-        // Ambil semua ID share untuk tagihan ini
-        const shareIds = expense.shares.map(s => s.id);
-
-        // Hapus semua Payment yang nyangkut di shares (misal yang masih pending/rejected)
-        await tx.payment.deleteMany({
-            where: { expenseShareId: { in: shareIds } }
-        });
-
         // Hapus semua shares
         await tx.expenseShare.deleteMany({
             where: { expenseId: expenseId }

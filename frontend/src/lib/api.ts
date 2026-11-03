@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { getToken } from '../utils/token';
+import { getToken, removeToken } from '../utils/token';
 
 // Buat instance axios dengan base URL dari environment variable
 const api = axios.create({
@@ -24,6 +24,23 @@ api.interceptors.request.use(
   },
   (error) => {
     // Tangani error saat request gagal dikonfigurasi
+    return Promise.reject(error);
+  }
+);
+
+// Interceptor RESPONSE: kalau backend bilang token tidak berlaku (401),
+// hapus token dan arahkan ke login. Endpoint /auth/* dikecualikan
+// (401 di sana artinya email/password salah, bukan sesi habis).
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    const isAuthEndpoint = error.config?.url?.startsWith('/auth/');
+    if (error.response?.status === 401 && !isAuthEndpoint) {
+      removeToken();
+      if (window.location.pathname !== '/login') {
+        window.location.replace('/login');
+      }
+    }
     return Promise.reject(error);
   }
 );
